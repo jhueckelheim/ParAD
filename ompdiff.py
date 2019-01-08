@@ -10,7 +10,7 @@ def scope_reverse(scopes,varset):
       if(var.exclusiveread):
         scopes_b[varname] = ompparser.Scopes.shared
       else:
-        scopes_b[varname] = ompparser.Scopes.reduction_add
+        scopes_b[varname] = ompparser.Scopes._atomic_add
     if(scope == ompparser.Scopes.reduction_add):
       scopes_b[varname] = ompparser.Scopes.firstprivate
   return scopes_b

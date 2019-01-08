@@ -6,6 +6,7 @@ class Scopes(Enum):
   shared = auto()
   reduction_add = auto()
   firstprivate = auto()
+  _atomic_add = auto() # interal scope type that is not part of OpenMP standard
 
 reductions = {
   '+'  : '_add',
