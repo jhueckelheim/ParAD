@@ -4,14 +4,14 @@ def scope_reverse(scopes,varset):
   scopes_b = {}
   for varname,scope in scopes.items(): 
     var = varset[varname]
-    if(scope == ompparser.private):
-      scopes_b[varname] = ompparser.private
-    if(scope == ompparser.shared):
+    if(scope == ompparser.Scopes.private):
+      scopes_b[varname] = ompparser.Scopes.private
+    if(scope == ompparser.Scopes.shared):
       if(var.exclusiveread):
-        scopes_b[varname] = ompparser.shared
+        scopes_b[varname] = ompparser.Scopes.shared
       else:
-        scopes_b[varname] = ompparser.reduction_add
-    if(scope == ompparser.reduction_add):
-      scopes_b[varname] = ompparser.firstprivate
+        scopes_b[varname] = ompparser.Scopes.reduction_add
+    if(scope == ompparser.Scopes.reduction_add):
+      scopes_b[varname] = ompparser.Scopes.firstprivate
   return scopes_b
 
