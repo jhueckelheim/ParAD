@@ -72,7 +72,7 @@ def getscopes(pragmastr, varset):
   varscopes = {}
   scopes, defaultscope = parsepragma(pragmastr)
   for varname, varproperties in varset.items():
-    if(varproperties.loopvariable):
+    if(varproperties.loopCounter):
       varscopes[varname] = Scopes.private
     else:
       for clause,variables in scopes.items():
