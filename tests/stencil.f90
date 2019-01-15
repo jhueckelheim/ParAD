@@ -78,6 +78,20 @@ subroutine stencil_indirect(r, u, n, c)
   end do
 end subroutine
 
+subroutine stencil_indirect_nonconst(r, u, n, c)
+  integer :: n, i
+  double precision, dimension(n) :: u, r
+  integer, dimension(n) :: c
+  !---------------------------------------
+  continue
+  !$omp parallel for
+  do i=2,n,2
+    r(c(i)) = 2*u(c(i-1))
+    c(i-1) = 4
+    r(c(i-1)) = 3*u(c(i))
+  end do
+end subroutine
+
 subroutine stencil_readwrite(u, n, a)
   integer :: n, i
   double precision, dimension(2,n) :: u

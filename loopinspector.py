@@ -16,9 +16,13 @@ class VariableProperty:
     self.name = varname
     self.function = sympy.Function(varname)
     self.loopCounter = False
+    self.indexFunctions = set()
 
   def makeLoopCounter(self):
     self.loopCounter = True
+
+  def addIndexFunctions(self, func):
+    self.indexFunctions.update(func)
 
 class ReadWriteInspector:
   """
@@ -40,10 +44,12 @@ class ReadWriteInspector:
     varWriteIndices = set(item.args for item in varWriteExpressions)
     if(self.GLOBAL in varWriteIndices):
       return True
-    elif(self.SLICE in varReadIndices):
+    if(self.SLICE in varReadIndices):
       return False
-    else:
-      return varReadIndices.issubset(allWriteIndices)
+    for indexFunction in var.indexFunctions:
+      if not (self.isReadOnly(indexFunction)):
+        return False
+    return varReadIndices.issubset(allWriteIndices)
 
   def isReadOnly(self, var):
     varWriteExpressions = set(filter(lambda x: x.func == var.function, self.writeExpressions))
@@ -76,10 +82,12 @@ class ReadWriteInspector:
     currently attempt to analyse slices, e.g. "1:2" or even "1:2:10".
     """
     indexexpr = []
+    indexfunc = set()
     if(type(node) == f2003.Name):
       # a variable reference, e.g. "i"
       self.visitName(node)
       indexexpr = self.vars[node.tostr()].function()
+      indexfunc.add(self.vars[node.tostr()])
     elif(type(node) == f2003.Int_Literal_Constant):
       # a constant, e.g. "2"
       indexexpr = int(node.tostr())
@@ -90,21 +98,26 @@ class ReadWriteInspector:
               '*': operator.mul,
               '/': operator.truediv,
               '%': operator.mod }
-      indexexpr = ops[node.items[1]](self.visitIndexNode(node.items[0]), self.visitIndexNode(node.items[2]))
+      leftexpr, leftfunc = self.visitIndexNode(node.items[0])
+      rightexpr, rightfunc = self.visitIndexNode(node.items[2])
+      indexexpr = ops[node.items[1]](leftexpr, rightexpr)
+      indexfunc = leftfunc.union( rightfunc )
     elif(type(node) == f2003.Section_Subscript_List):
       # multi-dimensional array access, e.g. "u(i,j)"
       for subscript in node.items:
-        indexexpr.append( self.visitIndexNode(subscript) )
+        thisexpr, thisfunc = self.visitIndexNode(subscript) 
+        indexexpr.append( thisexpr )
+        indexfunc.update( thisfunc )
       indexexpr = tuple(indexexpr)
     elif(type(node) == f2003.Subscript_Triplet):
       # array slicing, e.g. u(1:5). No analysis done, assume that
       # we access no element, all elements, or any other subset.
       indexexpr = self.SLICE
     elif(type(node) == f2003.Part_Ref):
-      indexexpr = self.visitPartRef(node)
+      indexexpr, indexfunc = self.visitPartRef(node)
     else:
       raise Exception("Unsupported index expression: %s"%(mode.tostr()))
-    return indexexpr
+    return indexexpr, indexfunc
 
   def visitPartRef(self, node, writeAccess = False):
     """
@@ -118,15 +131,17 @@ class ReadWriteInspector:
     var = node.items[0]
     varname = var.tostr()
     index = node.items[1]
-    indexExpression = self.visitIndexNode(index)
+    indexExpression, indexFunctions = self.visitIndexNode(index)
     self.visitNode(index) # visit the node again, this time also analysing read/write of all vars used within the node.
     self.visitName(var, readAccess = False, writeAccess = False)
+    self.vars[varname].addIndexFunctions(indexFunctions)
     expression = self.vars[varname].function(indexExpression)
+    indexFunctions.add(self.vars[varname])
     if(writeAccess):
       self.writeExpressions.add(expression)
     else:
       self.readExpressions.add(expression)
-    return expression
+    return expression, indexFunctions
 
   def visitAssignment(self, node):
     """

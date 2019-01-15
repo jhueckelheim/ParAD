@@ -47,7 +47,6 @@ for parloop in parloops:
   counter_name = parloop.content[1].items[1].items[1][0].tostr()
   inspector.vars[counter_name].makeLoopCounter()
   varset = inspector.vars
-  print(varset)
   scopes = ompparser.getscopes(omppragmastr, varset)
   print(parloop)
   print("Original scopes:")
