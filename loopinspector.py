@@ -1,6 +1,7 @@
 import fparser.two.Fortran2003 as f2003
 import ompparser
 import sympy
+import operator
 
 class VariableProperty:
   """
@@ -22,10 +23,12 @@ class VariableProperty:
     return self.readExpressions.issubset(self.writeExpressions)
 
   def addReadAccess(self, readExpression):
-    self.readExpressions.add(readExpression)
+    if readExpression != None:
+      self.readExpressions.add(readExpression)
 
   def addWriteAccess(self, writeExpression):
-    self.writeExpressions.add(writeExpression)
+    if writeExpression != None:
+      self.writeExpressions.add(writeExpression)
 
   def makeLoopCounter(self):
     self.loopCounter = True
@@ -58,24 +61,31 @@ class ReadWriteInspector:
     currently attempt to analyse slices, e.g. "1:2" or even "1:2:10".
     """
     print("inspecting %s"%(node))
-    indexexpr = ""
+    indexexpr = []
     if(type(node) == f2003.Name):
       # a variable reference, e.g. "i"
-      indexexpr += node.tostr()
+      self.visitName(node, readIndex = None, writeIndex = "GLOBAL")
+      indexexpr = self.vars[node.tostr()].symbol
     elif(type(node) == f2003.Int_Literal_Constant):
       # a constant, e.g. "2"
-      indexexpr += node.tostr()
+      indexexpr = int(node.tostr())
     elif(type(node) == f2003.Level_2_Expr):
       # an expression with an infix operator, e.g. "i+2"
-      indexexpr += self.visitIndexNode(node.items[0]) + (node.items[1]) + self.visitIndexNode(node.items[2])
+      ops = { "+": operator.add,
+              "-": operator.sub,
+              '*': operator.mul,
+              '/': operator.truediv,
+              '%': operator.mod }
+      indexexpr = ops[node.items[1]](self.visitIndexNode(node.items[0]), self.visitIndexNode(node.items[2]))
     elif(type(node) == f2003.Section_Subscript_List):
       # multi-dimensional array access, e.g. "u(i,j)"
       for subscript in node.items:
-        indexexpr += "::" + self.visitIndexNode(subscript) + "::"
+        indexexpr.append( self.visitIndexNode(subscript) )
+      indexexpr = tuple(indexexpr)
     elif(type(node) == f2003.Subscript_Triplet):
       # array slicing, e.g. u(1:5). No analysis done, assume that
       # we access no element, all elements, or any other subset.
-      indexexpr += "SLICE"
+      indexexpr = "SLICE"
     else:
       raise Exception("Unsupported index expression: %s"%(mode.tostr()))
     return indexexpr
@@ -92,7 +102,7 @@ class ReadWriteInspector:
     var = node.items[0]
     index = node.items[1]
     indexExpression = self.visitIndexNode(index)
-    self.visitNode(node) # visit the node again, this time also analysing read/write of all vars used within the node.
+    self.visitNode(index) # visit the node again, this time also analysing read/write of all vars used within the node.
     if(writeAccess):
       self.visitName(var, readIndex = None, writeIndex = indexExpression)
     else:
