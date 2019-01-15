@@ -19,8 +19,29 @@ class VariableProperty:
     self.symbol = sympy.Symbol(varname)
     self.loopCounter = False
 
-  def hasSymmetricReadWrite(self):
-    return self.readExpressions.issubset(self.writeExpressions)
+  def hasSymmetricReadWrite(self, other = None):
+    """
+    check that the set of read indices is a subset of the
+    set of write indices. The optional `òther` argument can
+    be used to provide a special variable that collects the
+    set of all indices that have been encountered.
+    """
+    if(other == None):
+      other = self
+    if("GLOBAL" in self.writeExpressions):
+      # The current variable has been globally overwritten in each iteration.
+      # Any possible read index must be a subset of this.
+      return True
+    elif("SLICE" in self.readExpressions):
+      # The read expression contains a slicing operator, we don't analyse
+      # this at the moment and must assume non-exclusive, unsymmetric reads.
+      return False
+    else:
+      # Check whether the read indices are a subset of the write indices we
+      # have encountered across all variables in this loop. If so, and assuming
+      # that the original code was race free, it must be safe to scope the
+      # adjoint variable as shared.
+      return self.readExpressions.issubset(other.writeExpressions)
 
   def addReadAccess(self, readExpression):
     if readExpression != None:
@@ -31,6 +52,7 @@ class VariableProperty:
       self.writeExpressions.add(writeExpression)
 
   def makeLoopCounter(self):
+    print("making loop counter %s"%(self))
     self.loopCounter = True
 
 class ReadWriteInspector:
@@ -40,6 +62,10 @@ class ReadWriteInspector:
 
   def __init__(self):
     self.vars = {}
+    self.globalIndex = VariableProperty("globalIndexSet")
+
+  def hasSafeReadAccess(self, var):
+    return var.hasSymmetricReadWrite(self.globalIndex)
 
   def visitName(self, node, readIndex, writeIndex):
     """
@@ -53,6 +79,8 @@ class ReadWriteInspector:
       self.vars[varname] = VariableProperty(varname)
     self.vars[varname].addReadAccess(readIndex)
     self.vars[varname].addWriteAccess(writeIndex)
+    self.globalIndex.addReadAccess(readIndex)
+    self.globalIndex.addWriteAccess(writeIndex)
 
   def visitIndexNode(self, node):
     """

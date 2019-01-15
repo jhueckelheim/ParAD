@@ -43,6 +43,9 @@ for parloop in parloops:
   omppragmastr = parloop.content[0].tostr()
   inspector = loopinspector.ReadWriteInspector()
   inspector.visitNode(parloop)
+  # hack to determine loop counter, which is default private
+  counter_name = parloop.content[1].items[1].items[1][0].tostr()
+  inspector.vars[counter_name].makeLoopCounter()
   varset = inspector.vars
   print(varset)
   scopes = ompparser.getscopes(omppragmastr, varset)
@@ -50,7 +53,7 @@ for parloop in parloops:
   print("Original scopes:")
   for varname,scope in scopes.items():
     print("%s: %s"%(varname,scope))
-  scopes_b = ompdiff.scope_reverse(scopes, varset)
+  scopes_b = ompdiff.scope_reverse(scopes, varset, inspector)
   print("Diff scopes:")
   for varname,scope in scopes_b.items():
     print("%s: %s"%(varname,scope))
