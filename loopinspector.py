@@ -14,51 +14,10 @@ class VariableProperty:
 
   def __init__(self, varname):
     self.name = varname
-    self.readExpressions = set()
-    self.writeExpressions = set()
-    self.symbol = sympy.Symbol(varname)
+    self.function = sympy.Function(varname)
     self.loopCounter = False
 
-  def hasSymmetricReadWrite(self, other = None):
-    """
-    check that the set of read indices is a subset of the
-    set of write indices. The optional `òther` argument can
-    be used to provide a special variable that collects the
-    set of all indices that have been encountered.
-    """
-    if(other == None):
-      other = self
-    if("GLOBAL" in self.writeExpressions):
-      # The current variable has been globally overwritten in each iteration.
-      # Any possible read index must be a subset of this.
-      return True
-    elif("SLICE" in self.readExpressions):
-      # The read expression contains a slicing operator, we don't analyse
-      # this at the moment and must assume non-exclusive, unsymmetric reads.
-      return False
-    else:
-      # Check whether the read indices are a subset of the write indices we
-      # have encountered across all variables in this loop. If so, and assuming
-      # that the original code was race free, it must be safe to scope the
-      # adjoint variable as shared.
-      return self.readExpressions.issubset(other.writeExpressions)
-
-  def isReadOnly(self):
-    return len(self.writeExpressions) == 0
-
-  def isWriteOnly(self):
-    return len(self.readExpressions) == 0
-
-  def addReadAccess(self, readExpression):
-    if readExpression != None:
-      self.readExpressions.add(readExpression)
-
-  def addWriteAccess(self, writeExpression):
-    if writeExpression != None:
-      self.writeExpressions.add(writeExpression)
-
   def makeLoopCounter(self):
-    print("making loop counter %s"%(self))
     self.loopCounter = True
 
 class ReadWriteInspector:
@@ -68,12 +27,33 @@ class ReadWriteInspector:
 
   def __init__(self):
     self.vars = {}
-    self.globalIndex = VariableProperty("globalIndexSet")
+    self.readExpressions = set()
+    self.writeExpressions = set()
+    self.SLICE = sympy.Symbol("SLICE")
+    self.GLOBAL = sympy.Symbol("GLOBAL")
 
   def hasSafeReadAccess(self, var):
-    return var.hasSymmetricReadWrite(self.globalIndex)
+    allWriteIndices = {item.args for item in self.writeExpressions}
+    varReadExpressions = set(filter(lambda x: x.func == var.function, self.readExpressions))
+    varWriteExpressions = set(filter(lambda x: x.func == var.function, self.writeExpressions))
+    varReadIndices = set(item.args for item in varReadExpressions)
+    varWriteIndices = set(item.args for item in varWriteExpressions)
+    if(self.GLOBAL in varWriteIndices):
+      return True
+    elif(self.SLICE in varReadIndices):
+      return False
+    else:
+      return varReadIndices.issubset(allWriteIndices)
 
-  def visitName(self, node, readIndex, writeIndex):
+  def isReadOnly(self, var):
+    varWriteExpressions = set(filter(lambda x: x.func == var.function, self.writeExpressions))
+    return len(varWriteExpressions) == 0
+
+  def isWriteOnly(self, var):
+    varReadExpressions = set(filter(lambda x: x.func == var.function, self.readExpressions))
+    return len(varReadExpressions) == 0
+
+  def visitName(self, node, writeAccess = False, readAccess = True):
     """
     Every time we encounter a node of type Name, we found a reference
     to a variable. Check if it is already in the set of known variables,
@@ -83,10 +63,11 @@ class ReadWriteInspector:
     varname = node.tostr()
     if not (varname in self.vars):
       self.vars[varname] = VariableProperty(varname)
-    self.vars[varname].addReadAccess(readIndex)
-    self.vars[varname].addWriteAccess(writeIndex)
-    self.globalIndex.addReadAccess(readIndex)
-    self.globalIndex.addWriteAccess(writeIndex)
+    expression = self.vars[varname].function(self.GLOBAL)
+    if(writeAccess):
+      self.writeExpressions.add(expression)
+    if(readAccess):
+      self.readExpressions.add(expression)
 
   def visitIndexNode(self, node):
     """
@@ -94,12 +75,11 @@ class ReadWriteInspector:
     in "u(i-1,2)". We support multi-dimensional arrays, but do not
     currently attempt to analyse slices, e.g. "1:2" or even "1:2:10".
     """
-    print("inspecting %s"%(node))
     indexexpr = []
     if(type(node) == f2003.Name):
       # a variable reference, e.g. "i"
-      self.visitName(node, readIndex = None, writeIndex = "GLOBAL")
-      indexexpr = self.vars[node.tostr()].symbol
+      self.visitName(node)
+      indexexpr = self.vars[node.tostr()].function()
     elif(type(node) == f2003.Int_Literal_Constant):
       # a constant, e.g. "2"
       indexexpr = int(node.tostr())
@@ -119,12 +99,14 @@ class ReadWriteInspector:
     elif(type(node) == f2003.Subscript_Triplet):
       # array slicing, e.g. u(1:5). No analysis done, assume that
       # we access no element, all elements, or any other subset.
-      indexexpr = "SLICE"
+      indexexpr = self.SLICE
+    elif(type(node) == f2003.Part_Ref):
+      indexexpr = self.visitPartRef(node)
     else:
       raise Exception("Unsupported index expression: %s"%(mode.tostr()))
     return indexexpr
 
-  def visitPartRef(self, node, writeAccess):
+  def visitPartRef(self, node, writeAccess = False):
     """
     Visit a partial reference, e.g. "u(i)" or "u(i-1,1:3)".
     Assemble a sympy expression from the index AST, and add
@@ -134,13 +116,17 @@ class ReadWriteInspector:
     this is a write or read access.
     """
     var = node.items[0]
+    varname = var.tostr()
     index = node.items[1]
     indexExpression = self.visitIndexNode(index)
     self.visitNode(index) # visit the node again, this time also analysing read/write of all vars used within the node.
+    self.visitName(var, readAccess = False, writeAccess = False)
+    expression = self.vars[varname].function(indexExpression)
     if(writeAccess):
-      self.visitName(var, readIndex = None, writeIndex = indexExpression)
+      self.writeExpressions.add(expression)
     else:
-      self.visitName(var, readIndex = indexExpression, writeIndex = None)
+      self.readExpressions.add(expression)
+    return expression
 
   def visitAssignment(self, node):
     """
@@ -150,7 +136,7 @@ class ReadWriteInspector:
     leftSide = node.items[0]
     rightSide = node.items[2]
     if(type(leftSide) == f2003.Name):
-      self.visitName(leftSide, readIndex = None, writeIndex = "GLOBAL")
+      self.visitName(leftSide, writeAccess = True)
     if(type(leftSide) == f2003.Part_Ref):
       self.visitPartRef(leftSide, writeAccess = True)
     else:
@@ -181,7 +167,7 @@ class ReadWriteInspector:
       elif(type(child) == f2003.Name):
         # If we encounter a name outside an assignment or partial reference,
         # then it must be a read access to the entire variable.
-        self.visitName(child, readIndex = "GLOBAL", writeIndex = None)
+        self.visitName(child)
       else:
         self.visitNode(child)
 

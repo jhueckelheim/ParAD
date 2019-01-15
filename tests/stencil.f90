@@ -42,6 +42,17 @@ subroutine stencil_trivial(r, u, n)
   end do
 end subroutine
 
+subroutine stencil_offset(r, u, n)
+  integer :: n, i
+  double precision, dimension(n) :: u, r
+  !---------------------------------------
+  continue
+  !$omp parallel for
+  do i=2,n-11
+    r(i) = u(i+10)
+  end do
+end subroutine
+
 subroutine stencil_symmetric(r, u, n)
   integer :: n, i
   double precision, dimension(n) :: u, r
@@ -54,15 +65,28 @@ subroutine stencil_symmetric(r, u, n)
   end do
 end subroutine
 
+subroutine stencil_indirect(r, u, n, c)
+  integer :: n, i
+  double precision, dimension(n) :: u, r
+  integer, dimension(n) :: c
+  !---------------------------------------
+  continue
+  !$omp parallel for
+  do i=2,n,2
+    r(c(i)) = 2*u(c(i-1))
+    r(c(i-1)) = 3*u(c(i))
+  end do
+end subroutine
+
 subroutine stencil_readwrite(u, n, a)
   integer :: n, i
   double precision, dimension(2,n) :: u
   !---------------------------------------
   continue
   !$omp parallel for
-  niceloop: do i=2,n-1
+  do i=2,n-1
     u(1,i) = u(2:4,i-1) + u(2,i+1) -2*u(2,i) * a
-  end do niceloop
+  end do
 end subroutine
 
 subroutine call_all(ra, rb, rc, rd, re, u, ubig, n)
