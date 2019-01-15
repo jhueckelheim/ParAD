@@ -43,6 +43,12 @@ class VariableProperty:
       # adjoint variable as shared.
       return self.readExpressions.issubset(other.writeExpressions)
 
+  def isReadOnly(self):
+    return len(self.writeExpressions) == 0
+
+  def isWriteOnly(self):
+    return len(self.readExpressions) == 0
+
   def addReadAccess(self, readExpression):
     if readExpression != None:
       self.readExpressions.add(readExpression)

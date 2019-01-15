@@ -9,6 +9,10 @@ def scope_reverse(scopes,varset,inspector):
     if(scope == ompparser.Scopes.shared):
       if(inspector.hasSafeReadAccess(var)):
         scopes_b[varname] = ompparser.Scopes.shared
+      elif(var.isWriteOnly()):
+        scopes_b[varname] = ompparser.Scopes.shared
+      elif(var.isReadOnly()):
+        scopes_b[varname] = ompparser.Scopes.reduction_add
       else:
         scopes_b[varname] = ompparser.Scopes._atomic_add
     if(scope == ompparser.Scopes.reduction_add):
