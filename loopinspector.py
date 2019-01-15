@@ -37,6 +37,12 @@ class ReadWriteInspector:
     self.GLOBAL = sympy.Symbol("GLOBAL")
 
   def hasSafeReadAccess(self, var):
+    """
+    Return True if the adjoint of var can be shared. This is the case if in the primal
+     - var is written globally, without index. This can only be safe if only one thread can reach this statement.
+     - the set of expressions from which var is read is a subset of set of expressions to which any variable is written,
+       and all variables appearing in these expressions are not modified.
+    """
     allWriteIndices = {item.args for item in self.writeExpressions}
     varReadExpressions = set(filter(lambda x: x.func == var.function, self.readExpressions))
     varWriteExpressions = set(filter(lambda x: x.func == var.function, self.writeExpressions))
@@ -45,6 +51,7 @@ class ReadWriteInspector:
     if(self.GLOBAL in varWriteIndices):
       return True
     if(self.SLICE in varReadIndices):
+      # We currently do not do anything smart for slices, assume that this read is unsafe.
       return False
     for indexFunction in var.indexFunctions:
       if not (self.isReadOnly(indexFunction)):
@@ -52,10 +59,16 @@ class ReadWriteInspector:
     return varReadIndices.issubset(allWriteIndices)
 
   def isReadOnly(self, var):
+    """
+    Return True if var is never written
+    """
     varWriteExpressions = set(filter(lambda x: x.func == var.function, self.writeExpressions))
     return len(varWriteExpressions) == 0
 
   def isWriteOnly(self, var):
+    """
+    Return True if var is never read
+    """
     varReadExpressions = set(filter(lambda x: x.func == var.function, self.readExpressions))
     return len(varReadExpressions) == 0
 
