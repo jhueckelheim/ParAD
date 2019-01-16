@@ -39,15 +39,6 @@ After a loop has been analysed fully, LoopInspector offers a number of convenien
 ## Differentiator
 This module applies differentiation rules to an OpenMP pragma, and relies on the analysis and helper functions in LoopInspector to produce more efficient adjoint code.
 
-## Limitations
-Besides the aforementioned limitations of the OpenMP parser, pyscopad could be improved in many ways:
-
- - Only OpenMP parallel loops with no synchronisation constructs are supported. More pragmas could be handled, e.g. tasks, targets, atomic, critical, master, ...
- - LoopInspector does not currently try to prove or use the *exclusive read property* as described in previous literature. It relies only on symmetric read access, read-only and write-only properties.
- - LoopInspector gives up when arrays are accessed in slices, as in `u(1:3)`.
- - LoopInspector ignores the presence of branches, and subroutine and function calls with side-effects, and the generated adjoint pragmas may be unsafe in such cases.
- - LoopInspector is written for Fortran, having in mind that all variables are declared outside the parallel loop. For C programs, the scoping rules and analysis must be refined in several ways, to take into account the fact that multiple variables in different parts of the code may have the same name.
- 
  ## LoopInspector.hasSafeReadAccess(var)
  This is perhaps the most novel function in `pyscopad`. The adjoint of `var` can be declared OpenMP `shared` if no two threads will attempt to write to it at the same time. This follows if `var` itself is at each index only read by one thread at a time. This follows if the expressions used to index into `var` are a subset of all expressions used to index into any variable while performing write access. For example, consider the following code:
  ```
@@ -74,3 +65,10 @@ The same property also allows the analysis of much simpler code, such as
   - slices, strides: It would be nice to support `1:3` etc. as index expressions.
   - nested scopes and writes: If `hasSafeReadAccess` holds within each `if`-block, then it still holds globally. Also, if it holds between writes to variables occuring in index expressions, then it holds globally. With the current implementation, all branches or writes invalidate the analysis.
   - the analysis should be done per subroutine, function, etc.
+  
+  ## Limitations
+Besides the aforementioned limitations of the OpenMP parser and LoopInspector, pyscopad could be improved in many ways:
+
+ - Only OpenMP parallel loops with no synchronisation constructs are supported. More pragmas could be handled, e.g. tasks, targets, atomic, critical, master, ...
+ - LoopInspector is written for Fortran, having in mind that all variables are declared outside the parallel loop. For C programs, the scoping rules and analysis must be refined in several ways, to take into account the fact that multiple variables in different parts of the code may have the same name.
+ 
