@@ -4,6 +4,16 @@ Python-based automatic differentiation tool for OpenMP pragmas
 ## What this is about
 In reverse-mode automatic differentiation (AD), the data flow of the resulting *adjoint* program is reversed compared to that in the original *primal* program. This means that a parallelisation strategy that works for some program does not work for its adjoint. For each new variable that is created in the adjoint program, `pyscopad` tries to determine the correct scope (shared, private, reduction-add or atomic) to ensure a correct, and hopefully fast, execution.
 
+## Getting started
+Two options to see `pyscopad` in action are:
+
+ - type `python pyscopad.py test/stencil.f90`
+ - install `pytest` and run it in the pyscopad folder, or see the contents of `test_pyscopad.py`
+ 
+ You will need to install, e.g. using `pip install`:
+ - `fparser sympy re operator enum`
+ - More information on fparser here: https://github.com/stfc/fparser/
+
 ## What's included
 `pyscopad` parses Fortran source code written in free-form F90, F2003 or similar, and looks for loops that are OpenMP parallel. It then calls its own lightweight OpenMP parser on that pragma, and its own data flow analyser called *LoopInspector* on the loop body. The results are then combined in the differentiator to determine the appropriate scope for all adjoint variables.
 
