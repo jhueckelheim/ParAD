@@ -15,7 +15,7 @@ Two options to see `pyscopad` in action are:
  - More information on fparser here: https://github.com/stfc/fparser/
 
 ## What's included
-`pyscopad` parses Fortran source code written in free-form F90, F2003 or similar, and looks for loops that are OpenMP parallel. It then calls its own lightweight OpenMP parser on that pragma, and its own data flow analyser called *LoopInspector* on the loop body. The results are then combined in the differentiator to determine the appropriate scope for all adjoint variables.
+`pyscopad` uses the wonderful fparser to parse free-form Fortran files and looks for loops that are OpenMP parallel. It then calls its own lightweight OpenMP parser on that pragma, and its own data flow analyser called *LoopInspector* on the loop body. The results are then combined in the differentiator to determine the appropriate scope for all adjoint variables.
 
 ## OpenMP parser
 The OpenMP parser barely deserves this name, as it is only a set of regular expressions that look for certain aspects within an OpenMP pragma. It finds the following clauses, and ignores all others:
