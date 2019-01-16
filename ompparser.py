@@ -9,8 +9,7 @@ class Scopes(Enum):
   atomic_add = auto() # interal scope type that is not part of OpenMP standard
 
 reductions = {
-  '+'  : '_add',
-  'max': '_max'
+  '+'  : '_add'
 }
 
 class OpenMPError(Exception):
