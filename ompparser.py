@@ -26,8 +26,6 @@ def parsepragma(pragmastr):
   TODO: If the expression inside the numthreads() or if() clause contains something that looks
         like a valid openmp clause, this simple regex will match this even though it should not
   TODO: This currently probably does not deal correctly with multi-line pragmas
-  TODO: each variable can only appear in at most one pragma (e.g. can not be shared and private
-        at the same time)
   """
   pragmascopes = {}
   defaultscope = None

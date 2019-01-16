@@ -199,20 +199,3 @@ class ReadWriteInspector:
       else:
         self.visitNode(child)
 
-
-# discover all touched variables that are not declared inside the parallel region.
-# how to deal with shadowing correctly, e.g. in the following, the externally visible a has exclusive read:
-# double a;
-# parallel for(i=0;i<n;i++) {
-#   a[i] += b[i];
-#   {
-#     double a = c;
-#     b[i]+=a;
-#   }
-# }
-# if we ignore this special case, we underestimate the exclusive read set, which is safe.
-#
-# also, assume all subroutines/functions are side-effect free, and there is no aliasing
-#
-# Another complication for C: Several distinct variables may have the same name if they appear in
-# different places. This could trip up the equivalence analysis of index expressions.
