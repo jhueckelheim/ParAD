@@ -25,7 +25,7 @@ The OpenMP parser barely deserves this name, as it is only a set of regular expr
  - `reduction(+,list)`
  - `default(none|private|shared)`
  
-The parser performs rudimentary sanity checks: Only up to one `default` clause is allowed, and any given variable can appear in at most one clause (e.g. can not be `private` and `shared` at the same time). The parser also has a module that accepts a list of all variables that were found by LoopInspector, and assigns the `default` scope to all variables that have not been explicitly given a scope within the pragma.
+The parser performs rudimentary sanity checks: Only up to one `default` clause is allowed, and any given variable can appear in at most one clause (e.g. can not be `private` and `shared` at the same time). The parser also has a function that accepts a list of variables, and assigns the correct scope to each, including the `default` scope to all variables that have not been explicitly given one.
 
 ## LoopInspector
 The LoopInspector traverses the syntax tree of a loop and tries to discover all references to all variables within that loop. All variables that appear on the left hand side of an assignment are added to the set of write accesses, all others are added to the list or read accesses. For each access, the index expression is also saved as a `sympy` expression. For example, the Fortran statement
