@@ -67,7 +67,7 @@ The same property also allows the analysis of much simpler code, such as
   - the analysis should be done per subroutine, function, etc.
   
   ## Limitations
-Besides the aforementioned limitations of the OpenMP parser and LoopInspector, pyscopad could be improved in many ways:
+Besides the aforementioned limitations of the parser and inspector, pyscopad could be improved in many ways, including:
 
  - Only OpenMP parallel loops with no synchronisation constructs are supported. More pragmas could be handled, e.g. tasks, targets, atomic, critical, master, ...
  - LoopInspector is written for Fortran, having in mind that all variables are declared outside the parallel loop. For C programs, the scoping rules and analysis must be refined in several ways, to take into account the fact that multiple variables in different parts of the code may have the same name.
