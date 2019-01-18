@@ -24,6 +24,60 @@ class VariableProperty:
   def addIndexFunctions(self, func):
     self.indexFunctions.update(func)
 
+class LoopInspector:
+  """
+  Inspector that walks an AST and finds all read accesses that are not shadowed.
+  """
+
+  def __init__(self):
+    self.vars = {}
+    self.unsafeReadVars = set()
+    self.SLICE = sympy.Symbol("SLICE")
+    self.GLOBAL = sympy.Symbol("GLOBAL")
+
+  def visitStatement(self, node, safeIndexExpressions):
+    """
+    Forward sweep to find all read and write accesses to
+    variables. Determine if read accesses are shadowed and therefore safe.
+
+    Expressions are removed from safeIndexExpressions as soon as a variable
+    that the expression depends on gets modified.
+    Expressions are added to safeIndexExpressions whenever they are used to
+    index a write access.
+
+    safeIndexExpressions are valid in a scope and all child scopes, but not
+    in parent scopes, so safeIndexExpressions are passed to child AST node
+    visitors, but not returned to the calling parent AST visitor.
+
+    Expressions are added to the list of readExpressions whenever they are
+    used to index a read access, if an equivalent expression is not
+    currently in safeIndexExpressions.
+    Expressions are removed from readExpressions if an equivalent expression
+    is added to safeIndexExpressions.
+    Each AST visitor starts with an empty list of read expressions, and
+    returns all expressions in readExpressions to the parent AST node
+    visitor as potentially unsafe.
+    """
+    children = []
+    readExpressions = set()
+    localSafeIndexExpressions = set()
+    if hasattr(node, "content"):
+      children = node.content
+    elif hasattr(node, "items"):
+      children = node.items
+    elif type(node) in (tuple, list):
+      children = node
+    for child in children:
+      if(type(child)==f2003.Assignment_Stmt):
+        # Visit an assignment statement, e.g. "a = b + c"
+        self.visitAssignment(child, safeIndexExpressions.union(localSafeIndexExpressions))
+        # within assignment visitor: deal with names, partref, level2expressions, etc.
+      elif(type(child)==f2003.If): 
+      elif(type(child)==f2003.Do): TODO etc...
+      else:
+        raise Exception("TODO: unsupported statement type")
+    return readExpressions, modifiedVars # modVars is needed to invalidate no longer safe expressions in the parent
+
 class ReadWriteInspector:
   """
   Inspector that finds read and write access within an AST.
