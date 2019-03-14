@@ -27,6 +27,10 @@ class VariableProperty:
 class ReadWriteInspector:
   """
   Inspector that finds read and write access within an AST.
+  ThreAD threADiff  ThreADder ShReADor OpenMP-ShRedDer OpenMP-ShaRD OpenMP-Shadowed-Read-Derivatives 
+  OpenMP shared memory automatic differentiator
+SPREAD	  Shared PaRallEl Automatic Differentiation
+PARADE	  PARallel Automatic DiffErentiation OpenMP-ParAD
   """
 
   def __init__(self):

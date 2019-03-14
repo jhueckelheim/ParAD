@@ -99,7 +99,7 @@ subroutine stencil_readwrite(u, n, a)
   continue
   !$omp parallel for
   do i=2,n-1
-    u(1,i) = u(2:4,i-1) + u(2,i+1) -2*u(2,i) * a
+    u(1,i) = u(2,i-1) + u(2,i+1) -2*u(2,i) * a
   end do
 end subroutine
 
