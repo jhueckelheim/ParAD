@@ -1,20 +1,20 @@
 import fparser.two.Fortran2003 as f2003
 import ompparser
-import sympy
+import z3
 import operator
 
 class VariableProperty:
   """
   Manage information available for a variable:
    - expressions to index the variable for read and write,
-   - a sympy.Symbol for this variable,
+   - a z3.Function for this variable,
    - whether this variable is the loop counter,
    - whether this variable has symmetric read/write access
   """
 
   def __init__(self, varname):
     self.name = varname
-    self.function = sympy.Function(varname)
+    self.function = z3.Function(varname, z3.IntSort())
     self.loopCounter = False
     self.indexFunctions = set()
 
@@ -29,16 +29,15 @@ class ReadWriteInspector:
   Inspector that finds read and write access within an AST.
   ThreAD threADiff  ThreADder ShReADor OpenMP-ShRedDer OpenMP-ShaRD OpenMP-Shadowed-Read-Derivatives 
   OpenMP shared memory automatic differentiator
-SPREAD	  Shared PaRallEl Automatic Differentiation
-PARADE	  PARallel Automatic DiffErentiation OpenMP-ParAD
+ParAD	  PARallel Automatic DiffErentiation OpenMP-ParAD
   """
 
   def __init__(self):
     self.vars = {}
     self.readExpressions = set()
     self.writeExpressions = set()
-    self.SLICE = sympy.Symbol("SLICE")
-    self.GLOBAL = sympy.Symbol("GLOBAL")
+    self.SLICE = z3.Int("SLICE")
+    self.GLOBAL = z3.Int("GLOBAL")
 
   def hasSafeReadAccess(self, var):
     """
@@ -81,7 +80,7 @@ PARADE	  PARallel Automatic DiffErentiation OpenMP-ParAD
     Every time we encounter a node of type Name, we found a reference
     to a variable. Check if it is already in the set of known variables,
     and add it if not. Also, add all expressions that are used to index
-    this variable for eiher read or write access.
+    this variable for either read or write access.
     """
     varname = node.tostr()
     if not (varname in self.vars):
@@ -139,7 +138,7 @@ PARADE	  PARallel Automatic DiffErentiation OpenMP-ParAD
   def visitPartRef(self, node, writeAccess = False):
     """
     Visit a partial reference, e.g. "u(i)" or "u(i-1,1:3)".
-    Assemble a sympy expression from the index AST, and add
+    Assemble a z3 expression from the index AST, and add
     it to the set of index expressions for that variable.
     For example: "i-1" will be added to the set of index
     expressions of "u". The writeAccess flag determines if
