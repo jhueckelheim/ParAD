@@ -4,8 +4,18 @@ Python-based automatic differentiation tool for OpenMP pragmas
 ## What this is about
 In reverse-mode automatic differentiation (AD), the data flow of the resulting *adjoint* program is reversed compared to that in the original *primal* program. This means that a parallelisation strategy that works for some program does not work for its adjoint. For each new variable that is created in the adjoint program, `pyscopad` tries to determine the correct scope (shared, private, reduction-add or atomic) to ensure a correct, and hopefully fast, execution.
 
+## Getting started
+Two options to see `pyscopad` in action are:
+
+ - type `python pyscopad.py test/stencil.f90`
+ - install `pytest` and run it in the pyscopad folder, or see the contents of `test_pyscopad.py`
+ 
+ You will need to install, e.g. using `pip install`:
+ - `fparser sympy re operator enum`
+ - More information on fparser here: https://github.com/stfc/fparser/
+
 ## What's included
-`pyscopad` parses Fortran source code written in free-form F90, F2003 or similar, and looks for loops that are OpenMP parallel. It then calls its own lightweight OpenMP parser on that pragma, and its own data flow analyser called *LoopInspector* on the loop body. The results are then combined in the differentiator to determine the appropriate scope for all adjoint variables.
+`pyscopad` uses the wonderful fparser to parse free-form Fortran files and looks for loops that are OpenMP parallel. It then calls its own lightweight OpenMP parser on that pragma, and its own data flow analyser called *LoopInspector* on the loop body. The results are then combined in the differentiator to determine the appropriate scope for all adjoint variables.
 
 ## OpenMP parser
 The OpenMP parser barely deserves this name, as it is only a set of regular expressions that look for certain aspects within an OpenMP pragma. It finds the following clauses, and ignores all others:
@@ -15,7 +25,7 @@ The OpenMP parser barely deserves this name, as it is only a set of regular expr
  - `reduction(+,list)`
  - `default(none|private|shared)`
  
-The parser performs rudimentary sanity checks: Only up to one `default` clause is allowed, and any given variable can appear in at most one clause (e.g. can not be `private` and `shared` at the same time). The parser also has a module that accepts a list of all variables that were found by LoopInspector, and assigns the `default` scope to all variables that have not been explicitly given a scope within the pragma.
+The parser performs rudimentary sanity checks: Only up to one `default` clause is allowed, and any given variable can appear in at most one clause (e.g. can not be `private` and `shared` at the same time). The parser also has a function that accepts a list of variables, and assigns the correct scope to each, including the `default` scope to all variables that have not been explicitly given one.
 
 ## LoopInspector
 The LoopInspector traverses the syntax tree of a loop and tries to discover all references to all variables within that loop. All variables that appear on the left hand side of an assignment are added to the set of write accesses, all others are added to the list or read accesses. For each access, the index expression is also saved as a `sympy` expression. For example, the Fortran statement
@@ -29,15 +39,6 @@ After a loop has been analysed fully, LoopInspector offers a number of convenien
 ## Differentiator
 This module applies differentiation rules to an OpenMP pragma, and relies on the analysis and helper functions in LoopInspector to produce more efficient adjoint code.
 
-## Limitations
-Besides the aforementioned limitations of the OpenMP parser, pyscopad could be improved in many ways:
-
- - Only OpenMP parallel loops with no synchronisation constructs are supported. More pragmas could be handled, e.g. tasks, targets, atomic, critical, master, ...
- - LoopInspector does not currently try to prove or use the *exclusive read property* as described in previous literature. It relies only on symmetric read access, read-only and write-only properties.
- - LoopInspector gives up when arrays are accessed in slices, as in `u(1:3)`.
- - LoopInspector ignores the presence of branches, and subroutine and function calls with side-effects, and the generated adjoint pragmas may be unsafe in such cases.
- - LoopInspector is written for Fortran, having in mind that all variables are declared outside the parallel loop. For C programs, the scoping rules and analysis must be refined in several ways, to take into account the fact that multiple variables in different parts of the code may have the same name.
- 
  ## LoopInspector.hasSafeReadAccess(var)
  This is perhaps the most novel function in `pyscopad`. The adjoint of `var` can be declared OpenMP `shared` if no two threads will attempt to write to it at the same time. This follows if `var` itself is at each index only read by one thread at a time. This follows if the expressions used to index into `var` are a subset of all expressions used to index into any variable while performing write access. For example, consider the following code:
  ```
@@ -64,3 +65,10 @@ The same property also allows the analysis of much simpler code, such as
   - slices, strides: It would be nice to support `1:3` etc. as index expressions.
   - nested scopes and writes: If `hasSafeReadAccess` holds within each `if`-block, then it still holds globally. Also, if it holds between writes to variables occuring in index expressions, then it holds globally. With the current implementation, all branches or writes invalidate the analysis.
   - the analysis should be done per subroutine, function, etc.
+  
+  ## Limitations
+Besides the aforementioned limitations of the parser and inspector, pyscopad could be improved in many ways, including:
+
+ - Only OpenMP parallel loops with no synchronisation constructs are supported. More pragmas could be handled, e.g. tasks, targets, atomic, critical, master, ...
+ - LoopInspector is written for Fortran, having in mind that all variables are declared outside the parallel loop. For C programs, the scoping rules and analysis must be refined in several ways, to take into account the fact that multiple variables in different parts of the code may have the same name.
+ 
