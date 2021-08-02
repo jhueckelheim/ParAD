@@ -6,7 +6,7 @@ class Scopes(Enum):
   shared = auto()
   reduction_add = auto()
   firstprivate = auto()
-  atomic_add = auto() # interal scope type that is not part of OpenMP standard
+  atomic_add = auto() # internal scope type that is not part of OpenMP standard
 
 reductions = {
   '+'  : '_add'
@@ -85,3 +85,28 @@ def getscopes(pragmastr, varset):
 def ispragma(commentstr):
   if(re.match("!\$\s*omp",commentstr,re.IGNORECASE)):
     return True
+
+def __getparloops_walker__(node):
+  '''
+  Recursive helper function for getparloops
+  '''
+  local_list = []
+  children = []
+  if hasattr(node, "content"):
+    children = node.content
+  elif hasattr(node, "items"):
+    children = node.items
+  for child in children:
+    if(type(child) == f2003.Comment and ompparser.ispragma(child.tostr())):
+      local_list.append(node)
+    local_list += __getparloops_walker__(child)
+  return local_list
+
+def getparloops_file(filename):
+  '''
+  Find do-loops with OpenMP pragma
+  '''
+  reader = FortranFileReader(filename, ignore_comments=False)
+  f_parser = ParserFactory().create(std="f2003")
+  ast = f_parser(reader)
+  return __getparloops_walker__(ast)
