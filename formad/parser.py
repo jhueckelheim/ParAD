@@ -1,4 +1,5 @@
 import formad.ompparser as ompparser
+from formad.scope import Scope
 from fparser.common.readfortran import FortranFileReader
 from fparser.two.parser import ParserFactory
 from fparser.two import Fortran2003
@@ -40,27 +41,6 @@ class ParloopFinder:
     f_parser = ParserFactory().create(std="f2003")
     ast = f_parser(reader)
     return __find_parloops_walker(ast)
-
-class Scope:
-  '''
-  Variables and their properties are sometimes only valid in a particular
-  scope (e.g. within a branch or loop body). This class holds variables and
-  their index expressions that appear in a particular scope.
-  '''
-  def __init__(self, parent):
-    self.parent = parent
-    self.siblingNumber = 0
-    if(parent):
-      self.siblingNumber = len(parent.children)
-      parent.children.append(self)
-    self.children = []
-
-  def __repr__(self):
-    parentrepr = ""
-    if (self.parent):
-      return repr(self.parent)+"_"+str(self.siblingNumber)
-    else:
-      return str(self.siblingNumber)
 
 class VariableInstance:
   '''
@@ -126,7 +106,7 @@ class ParloopParser:
     self.controlPath = Scope(None)
     self.visitNode(parloop)
     # hack to determine name of loop counter variable
-    self.loopcounter = parloop.content[1].items[1].items[1][0].tostr()
+    self.loopCounter = self.vars[parloop.content[1].items[1].items[1][0].tostr()]
 
   def visitName(self, node, writeAccess = False, indexExpression = None):
     """
@@ -248,6 +228,7 @@ class ParloopParser:
                          type(()),
                          type(""),
                          Fortran2003.Int_Literal_Constant,
+                         Fortran2003.Real_Literal_Constant,
                          Fortran2003.Add_Operand,
                          Fortran2003.Level_2_Expr,
                        )

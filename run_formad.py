@@ -12,16 +12,3 @@ if __name__ == "__main__":
     parser = ParloopParser(parloop)
     analyzer = ParloopAnalyzer(parloop, parser)
     differentiator = ParloopDifferentiator(analyzer)
-    clauses = analyzer.clauses
-    clauses_b = differentiator.clauses
-    print(parloop)
-    print("Original clauses:")
-    for varname,clause in clauses.items():
-      print("%s: %s"%(varname,clause))
-    print("Diff clauses:")
-    for varname,clause in clauses_b.items():
-      print("%s: %s"%(varname,clause))
-    print("\n")
-
-    for var in parser.vars:
-      print(str(parser.vars[var]))
