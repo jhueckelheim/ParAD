@@ -68,6 +68,7 @@ class Variable:
     self.readExpressions = {}
     self.numDims = numDims
     self.pushInstance()
+    self.currentInstance = self.instances[0]
 
   def pushExpression(self, indexExpression, writeAccess, controlPath):
     if(writeAccess):
@@ -85,16 +86,10 @@ class Variable:
     varname = f"{self.name}_{len(self.instances)}"
     logging.debug(f"pushing instance {varname}")
     self.instances.append(VariableInstance(varname, self.numDims))
+    self.currentInstance = self.instances[-1]
 
   def __str__(self):
     return f"Variable {self.name} with instances ("+", ".join([str(x) for x in self.instances])+")\n  read expressions: ("+", ".join([f"{str(x)}:{self.readExpressions[x]}" for x in self.readExpressions])+")\n  write expressions: ("+", ".join([f"{str(x)}:{self.writeExpressions[x]}" for x in self.writeExpressions]) + ")"
-
-  @property
-  def currentInstance(self):
-    return self.instances[-1]
-
-  def popInstance(self):
-    return self.instances.pop()
 
 class ParloopParser:
   '''
@@ -249,19 +244,51 @@ class ParloopParser:
                         Fortran2003.Nonlabel_Do_Stmt,
                        )):
       # We start branching
+      # Get the current instance of all variables, and store it in the current scope
+      curInstances = {varname:self.vars[varname].currentInstance for varname in self.vars}
+      self.controlPath.props["instances"] = curInstances
+      self.controlPath.props["changedVars"] = set()
+      # Then, create a new scope for the if branch and make it the new "current" scope
       curScope = Scope(self.controlPath)
       self.controlPath = curScope
     elif(type(node) in (Fortran2003.Else_If_Stmt,
                         Fortran2003.Else_Stmt,
                        )):
       # We are inside a branching construct, and enter a different branch
-      curScope = Scope(self.controlPath.parent)
+      # Get the current instance of all variables. These may have been created by
+      # another branch, which we have just left. We remember that they have been
+      # changed (we need this information at the endif/enddo statement), and revert
+      # the instance back to that of the parent scope.
+      curInstances = {varname:self.vars[varname].currentInstance for varname in self.vars}
+      parentScope = self.controlPath.parent
+      curScope = Scope(parentScope)
       self.controlPath = curScope
+      parentInstances = parentScope.props["instances"]
+      for varname in curInstances:
+        if(not varname in parentInstances):
+          # We have discovered a new variable inside a branch, and the parent
+          # did therefore not yet have an instance for it. By definition, the
+          # instance that was valid before we saw the variable for the first
+          # time is the initial instance.
+          parentInstances[varname] = self.vars[varname].instances[0]
+        if(curInstances[varname] != parentInstances[varname]):
+          # The more "conventional" case: a variable that already had an
+          # instance, and we created yet another instance in the previous
+          # branch. Revert back to the parent instance now.
+          parentScope.props["changedVars"].add(varname) 
+          self.vars[varname].currentInstance = parentInstances[varname]
     elif(type(node) in (Fortran2003.End_If_Stmt,
                         Fortran2003.End_Do_Stmt,
                        )):
       # We finish branching (merge of paths)
       self.controlPath = self.controlPath.parent
+      # If a variable has created a new instance in any branch, we need to
+      # create yet another instance of it now.
+      try:
+        for varname in self.controlPath.props["changedVars"]:
+          self.vars[varname].pushInstance()
+      except:
+        print(node)
     elif not (type(node) in ignoredNodeTypes):
       # If we encounter other nodes that are not in the white list of
       # unimportant node types, we print an error message (but continue
@@ -269,6 +296,7 @@ class ParloopParser:
       # this node type is important for this analysis (and develop some theory
       # for it), or else, add it to the white list.
       logging.error(f"other node type: {type(node)}\n{node}")
+      #TODO make private variables var(i)
     children = []
     if hasattr(node, "content"):
       children = node.content

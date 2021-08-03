@@ -33,6 +33,8 @@ class ParloopAnalyzer:
     may of course have different names than i and i'.
     '''
     assert(len(self.loopCounter.instances) == 1)
+    # In fortran, the loop counter must not be modified within the loop body.
+    # If the loopcounter has more than one instance, something must be wrong.
     counter0 = self.loopCounter.currentInstance.function
     self.loopCounter.pushInstance()
     counter1 = self.loopCounter.currentInstance.function
