@@ -77,7 +77,7 @@ class Variable:
   '''
   Class to hold properties of a variable in the parsed code
   '''
-  def __init__(self, varname, numDims, implicitCounter = None):
+  def __init__(self, varname, numDims, implicitCounter = None, isCounter = False):
     logging.debug(f"Creating Variable object {varname} with {numDims} dimensions")
     self.name = varname
     self.instances = []
@@ -85,7 +85,9 @@ class Variable:
     self.readExpressions = {}
     self.numDims = numDims
     self.implicitCounter = implicitCounter
+    self.isCounter = False
     self.pushInstance()
+    self.isCounter = isCounter
     self.currentInstance = self.instances[0]
 
   def pushExpression(self, indexExpression, writeAccess, controlPath):
@@ -102,9 +104,10 @@ class Variable:
 
   def pushInstance(self):
     varname = f"{self.name}_{len(self.instances)}"
-    logging.debug(f"pushing instance {varname}")
-    self.instances.append(VariableInstance(varname, self.numDims, self.implicitCounter))
-    self.currentInstance = self.instances[-1]
+    if(not self.isCounter):
+      logging.debug(f"pushing instance {varname}")
+      self.instances.append(VariableInstance(varname, self.numDims, self.implicitCounter))
+      self.currentInstance = self.instances[-1]
 
   def __str__(self):
     return f"Variable {self.name} with instances ("+", ".join([str(x) for x in self.instances])+")\n  read expressions: ("+", ".join([f"{str(x)}:{self.readExpressions[x]}" for x in self.readExpressions])+")\n  write expressions: ("+", ".join([f"{str(x)}:{self.writeExpressions[x]}" for x in self.writeExpressions]) + ")"
@@ -118,10 +121,10 @@ class ParloopParser:
     self.vars = {}
     self.controlPath = Scope(None)
     self.ompparser = omp.OpenMPParser(omppragma)
-    self.loopsVisited = 0
-    self.visitNode(parloop)
     # hack to determine name of loop counter variable
-    self.loopCounter = self.vars[parloop.content[1].items[1].items[1][0].tostr()]
+    self.loopCounterName = parloop.content[1].items[1].items[1][0].tostr()
+    self.vars[self.loopCounterName] = Variable(self.loopCounterName, 0, isCounter = True)
+    self.visitNode(parloop)
 
   def visitName(self, node, writeAccess = Answer.no, indexExpression = None):
     """
@@ -232,12 +235,21 @@ class ParloopParser:
     stride). This is mostly to spawn a new instance of the loop counter, since
     it is being modified.
     '''
-    if(self.loopsVisited != 0):
-      # we need to skip the very first loop we'll visit, since it is the
-      # parallel loop, and its counter is handled differently.
-      loopCounter = node.items[1][0]
-      self.visitName(loopCounter, writeAccess = Answer.yes)
-    self.loopsVisited += 1
+    # we need to skip the very first loop we'll visit, since it is the
+    # parallel loop, and its counter is handled differently.
+    loopCounter = node.items[1][0]
+    self.visitName(loopCounter, writeAccess = Answer.yes)
+
+  def visitDoLoop(self, node):
+    changedVars = self.visitNodeDryRun(node)
+    print("chgn"+str(changedVars))
+    for var in changedVars:
+      if(var in self.vars):
+        self.vars[var].pushInstance()
+    for item in node.content:
+      self.visitNode(item)
+    for var in changedVars:
+      self.vars[var].pushInstance()
 
   def visitNode(self, node):
     """
@@ -252,7 +264,8 @@ class ParloopParser:
     # statements that are always contained in these blocks.
     ignoredNodeTypes = ( Fortran2003.Comment,
                          Fortran2003.Loop_Control,
-                         Fortran2003.Block_Nonlabel_Do_Construct,
+                         Fortran2003.Nonlabel_Do_Stmt,
+                         Fortran2003.End_Do_Stmt,
                          Fortran2003.If_Construct,
                          Fortran2003.Section_Subscript_List,
                          type(None),
@@ -288,9 +301,14 @@ class ParloopParser:
       # If we encounter a name outside an assignment or partial reference,
       # then it must be a read access to the entire variable.
       self.visitName(node)
-    elif(type(node) in (Fortran2003.If_Then_Stmt,
-                        Fortran2003.Nonlabel_Do_Stmt,
-                       )):
+    elif(type(node) == Fortran2003.Block_Nonlabel_Do_Construct):
+      # Loops require special handling, since we may later discover that part
+      # of the loop body will overwrite a variable, which might have happened
+      # in a previous iteration before we reach the textual representation of a
+      # variable. We need to look ahead and find all variables that will be
+      # modified, and create new instances for them right from the start.
+      self.visitDoLoop(node)
+    elif(type(node) == Fortran2003.If_Then_Stmt):
       # We start branching
       # Get the current instance of all variables, and store it in the current scope
       curInstances = {varname:self.vars[varname].currentInstance for varname in self.vars}
@@ -326,9 +344,7 @@ class ParloopParser:
           # branch. Revert back to the parent instance now.
           parentScope.props["changedVars"].add(varname) 
           self.vars[varname].currentInstance = parentInstances[varname]
-    elif(type(node) in (Fortran2003.End_If_Stmt,
-                        Fortran2003.End_Do_Stmt,
-                       )):
+    elif(type(node) == Fortran2003.End_If_Stmt):
       # We finish branching (merge of paths)
       self.controlPath = self.controlPath.parent
       # If a variable has created a new instance in any branch, we need to
@@ -353,3 +369,43 @@ class ParloopParser:
       children = node
     for child in children:
       self.visitNode(child)
+
+  def visitNodeDryRun(self, node):
+    """
+    Recursively go through an AST part and find all variables that may be
+    modified, without taking any other action (not pushing instances or
+    expressions).
+    """
+    changedVarNames = set()
+    if(type(node) == Fortran2003.Assignment_Stmt):
+      # Visit an assignment statement, e.g. "a = b + c"
+      leftSide = node.items[0]
+      if(type(leftSide) == Fortran2003.Name):
+        changedVarNames.add(str(leftSide))
+      elif(type(leftSide) == Fortran2003.Part_Ref):
+        changedVarNames.add(str(leftSide.items[0]))
+    elif(type(node) == Fortran2003.Actual_Arg_Spec_List):
+      # Visit the arguments of a subroutine call. They may get overwritten in
+      # the subroutine, so we start new instances for affected variables. On
+      # the other hand, they might not get overwritten, so we can not add the
+      # index expressions for them to our "safe" expressions.
+      for arg in node.items:
+        if(type(arg) == Fortran2003.Name):
+          changedVarNames.add(str(arg))
+        elif(type(arg) == Fortran2003.Part_Ref):
+          changedVarNames.add(str(arg.items[0]))
+    elif(type(node) == Fortran2003.Loop_Control):
+      # we need to skip the very first loop we'll visit, since it is the
+      # parallel loop, and its counter is handled differently.
+      loopCounter = node.items[1][0]
+      changedVarNames.add(str(loopCounter))
+    children = []
+    if hasattr(node, "content"):
+      children = node.content
+    elif hasattr(node, "items"):
+      children = node.items
+    elif type(node) in (tuple, list):
+      children = node
+    for child in children:
+      changedVarNames = changedVarNames.union(self.visitNodeDryRun(child))
+    return changedVarNames

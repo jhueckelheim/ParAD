@@ -21,7 +21,7 @@ class ParloopAnalyzer:
     self.omppragmastr = parloop.content[0].tostr()
     self.vars = parser.vars
     self.controlPath = parser.controlPath
-    self.loopCounter = parser.loopCounter
+    self.loopCounter = parser.vars[parser.loopCounterName]
     self.counter0, self.counter1 = self.getCounterPair()
     self.ttypes = TupleTypes()
     self.buildModel(parser.controlPath, self.counter0 != self.counter1)
