@@ -8,7 +8,7 @@ if __name__ == "__main__":
     raise Exception("Input f90 file must be specified")
   filename = sys.argv[1]
   parloopFinder = ParloopFinder(filename)
-  for parloop in parloopFinder.parloops:
-    parser = ParloopParser(parloop)
+  for omppragma, parloop in parloopFinder.parloops:
+    parser = ParloopParser(omppragma, parloop)
     analyzer = ParloopAnalyzer(parloop, parser)
     differentiator = ParloopDifferentiator(analyzer)
