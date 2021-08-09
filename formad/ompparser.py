@@ -7,6 +7,10 @@ class Scopes(Enum):
   reduction_add = auto()
   firstprivate = auto()
   atomic_add = auto() # scope type that is not part of OpenMP standard
+  
+class OpenMPError(Exception):
+  def __init__(self, message):
+    Exception("OpenMP parser error: %s"%message)
 
 class OpenMPParser:
   reductions = {
@@ -15,10 +19,6 @@ class OpenMPParser:
 
   def __init__(self, pragmastr):
     self.scopes, self.default = self.parsepragma(str(pragmastr))
-  
-  class OpenMPError(Exception):
-    def __init__(self, message):
-      Exception("OpenMP parser error: %s"%message)
   
   def parsepragma(self, pragmastr):
     """
@@ -42,6 +42,7 @@ class OpenMPParser:
           reductiontype,reductionvars = clause.split(':')
           clausetype_r = "%s%s"%(clausetype,reductions[reductiontype])
           newvariables = re.split('\s*[,|\s]\s*',reductionvars)
+          newvariables = list(filter(None, newvariables))
           pragmascopes[clausetype_r] = pragmascopes.get(clausetype_r, []) + newvariables
         elif(clausetype == 'default'):
           if(defaultscope): # we already encountered a default
@@ -54,10 +55,11 @@ class OpenMPParser:
             raise OpenMPError("Invalid default scope")
         else:
           newvariables = re.split('\s*[,|\s]\s*',clause)
+          newvariables = list(filter(None, newvariables))
           pragmascopes[clausetype] = pragmascopes.get(clausetype, []) + newvariables
         lowervarset = set([item.lower() for item in newvariables])
-        if(lowervarset & variables):
-          raise OpenMPError("Variables in multiple clauses: %s"%(newvariables & variables))
+        if(len(lowervarset & variables) > 0):
+          raise OpenMPError("Variables in multiple clauses: %s"%(lowervarset & variables))
         else:
           variables |= lowervarset
     if defaultscope == None:

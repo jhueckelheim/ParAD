@@ -58,20 +58,21 @@ class VariableInstance:
   is created.
   '''
   def __init__(self, varname, numDims, implicitCounter = None):
-    logging.debug(f"Creating VariableInstance object {varname}")
+    logging.debug(f"Creating VariableInstance object {varname} with iCounter {implicitCounter}")
     self.name = varname
     self.implicitCounter = implicitCounter
     if(self.implicitCounter):
       numDims += 1
-    self.function = z3.Function(varname,z3.RealSort(),*(z3.RealSort(),)*numDims)
+    self._function = z3.Function(varname,z3.RealSort(),*(z3.RealSort(),)*numDims)
 
   def __str__(self):
     return self.name
 
   def function(self, *exprs):
     if(self.implicitCounter):
-      exprs.append(self.implicitCounter)
-    return self.function(*exprs)
+      exprs += (self.implicitCounter.currentInstance.function(),)
+    logging.debug(f"Calling {self.name} with exprs {exprs}")
+    return self._function(*exprs)
 
 class Variable:
   '''
@@ -302,6 +303,8 @@ class ParloopParser:
                          Fortran2003.Cycle_Stmt,
                          Fortran2003.Call_Stmt,
                          Fortran2003.Parenthesis,
+                         Fortran2003.Level_4_Expr,
+                         Fortran2003.And_Operand,
                        )
     logging.debug(f"visiting node {node}")
     if(type(node)==Fortran2003.Assignment_Stmt):
