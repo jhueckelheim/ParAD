@@ -138,8 +138,8 @@ class ParloopParser:
     if not (varname in self.vars):
       # we have discovered a new variable
       implicitCounter = None
-      if(self.ompparser.getscope(varname) != omp.Scopes.shared and varname != self.loopCounter):
-        implicitCounter = self.vars[self.loopCounter]
+      if(self.ompparser.getscope(varname) != omp.Scopes.shared and varname != self.loopCounterName):
+        implicitCounter = self.vars[self.loopCounterName]
       self.vars[varname] = Variable(varname, numDims, implicitCounter)
     elif (writeAccess in (Answer.yes, Answer.maybe)):
       # we have seen this variable before, but it may be modified,
@@ -162,8 +162,22 @@ class ParloopParser:
       logging.debug(f"visiting IndexNode/Literal node {node.tostr()}")
       # a constant, e.g. "2"
       indexexpr = (int(node.tostr()),)
-    elif(type(node) == Fortran2003.Level_2_Expr):
+    elif(type(node) == Fortran2003.Level_2_Unary_Expr):
+      assert(len(node.items) == 2)
+      if(node.items[0] == "-"):
+        logging.debug(f"visiting unary -{node.items[1]}")
+        negexpr = self.visitIndexNode(node.items[1])
+        assert(len(negexpr) == 1)
+        indexexpr = (operator.neg(negexpr[0]),)
+      else:
+        assert(node.items[0] == "+")
+        logging.debug(f"visiting unary +{node.items[1]}")
+        posexpr = self.visitIndexNode(node.items[1])
+        assert(len(posexpr) == 1)
+        indexexpr = (operator.pos(posexpr[0]),)
+    elif(type(node) in (Fortran2003.Level_2_Expr, Fortran2003.Add_Operand)):
       logging.debug(f"visiting IndexNode/Level2 node {node.tostr()}")
+      assert(len(node.items)==3)
       # an expression with an infix operator, e.g. "i+2"
       ops = { "+": operator.add,
               "-": operator.sub,
@@ -172,9 +186,14 @@ class ParloopParser:
               '%': operator.mod }
       leftexpr = self.visitIndexNode(node.items[0])
       rightexpr = self.visitIndexNode(node.items[2])
+      logging.debug(f"visiting IndexNode/Level2 node {node.tostr()} with items {node.items}")
+      logging.debug(f"  has leftexpr {leftexpr}")
+      logging.debug(f"  has rightexpr {rightexpr} from {node.items[2]} type {type(node.items[2])}")
+      assert(len(leftexpr) == 1 and len(rightexpr) == 1)
       indexexpr = (ops[node.items[1]](leftexpr[0], rightexpr[0]),)
+      logging.debug(f"  has op {node.items[1]}")
     elif(type(node) == Fortran2003.Section_Subscript_List):
-      logging.debug(f"visiting IndexNode/SectionSubscriptList node {node.tostr()}")
+      logging.debug(f"visiting IndexNode/SectionSubscriptList node {node}")
       # multi-dimensional array access, e.g. "u(i,j)"
       indexexpr = []
       for subscript in node.items:
@@ -189,8 +208,12 @@ class ParloopParser:
     elif(type(node) == Fortran2003.Part_Ref):
       logging.debug(f"visiting IndexNode/PartRef node {node.tostr()}")
       indexexpr = (self.visitPartRef(node),)
+    elif(type(node) == Fortran2003.Parenthesis):
+      logging.debug(f"visiting IndexNode/Parenthesis node {node.tostr()}")
+      assert(len(node.items)==3 and node.items[0] == "(" and node.items[2] == ")")
+      indexexpr = self.visitIndexNode(node.items[1])
     else:
-      raise Exception("Unsupported index expression: %s"%(mode.tostr()))
+      raise Exception("Unsupported index expression: %s (type %s)"%(str(node),str(type(node))))
     return indexexpr
 
   def visitPartRef(self, node, writeAccess = Answer.no):
@@ -223,10 +246,10 @@ class ParloopParser:
     rightSide = node.items[2]
     if(type(leftSide) == Fortran2003.Name):
       self.visitName(leftSide, writeAccess = Answer.yes)
-    if(type(leftSide) == Fortran2003.Part_Ref):
+    elif(type(leftSide) == Fortran2003.Part_Ref):
       self.visitPartRef(leftSide, writeAccess = Answer.yes)
     else:
-      raise Exception("Assignment with unsupported left side: %s"%(node.tostr()))
+      raise Exception(f"Assignment with unsupported left side: {leftSide.tostr()} (type {type(leftSide)})")
     self.visitNode(rightSide)
 
   def visitLoopControl(self, node):
@@ -242,7 +265,6 @@ class ParloopParser:
 
   def visitDoLoop(self, node):
     changedVars = self.visitNodeDryRun(node)
-    print("chgn"+str(changedVars))
     for var in changedVars:
       if(var in self.vars):
         self.vars[var].pushInstance()
@@ -276,7 +298,10 @@ class ParloopParser:
                          Fortran2003.Real_Literal_Constant,
                          Fortran2003.Add_Operand,
                          Fortran2003.Level_2_Expr,
+                         Fortran2003.Level_2_Unary_Expr,
+                         Fortran2003.Cycle_Stmt,
                          Fortran2003.Call_Stmt,
+                         Fortran2003.Parenthesis,
                        )
     logging.debug(f"visiting node {node}")
     if(type(node)==Fortran2003.Assignment_Stmt):
