@@ -135,9 +135,9 @@ class Variable:
         self.readExpressions[repr(controlPath)] = set()
       self.readExpressions[repr(controlPath)].add(indexExpression)
 
-  def pushInstance(self):
+  def pushInstance(self, forcePush = False):
     varname = f"{self.name}_{len(self.instances)}"
-    if(not self.isCounter):
+    if(not self.isCounter or forcePush):
       logging.debug(f"pushing instance {varname}")
       self.instances.append(VariableInstance(varname, self.numDims, self.implicitCounter))
       self.currentInstance = self.instances[-1]
