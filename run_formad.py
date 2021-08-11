@@ -35,3 +35,7 @@ if __name__ == "__main__":
     parloop = parloopFinder.parloop
     parser = ParloopParser(ompparser, parloop)
     analyzer = ParloopAnalyzer(parloop, parser, questionvars)
+    print("{")
+    for var in analyzer.safeQueryVars:
+      print(f"  \"{var}\": {analyzer.safeQueryVars[var]},")
+    print("}")

@@ -1,4 +1,5 @@
 import z3
+import json
 from formad.scope import Scope
 
 class TupleTypes:
@@ -26,7 +27,7 @@ class ParloopAnalyzer:
     self.ttypes = TupleTypes()
     self.isSafe = {x:True for x in self.vars}
     self.checkModel(parser.controlPath, self.counter0 != self.counter1)
-    print({var:self.isSafe[var] for var in questionvars})
+    self.safeQueryVars = {var:self.isSafe[var] for var in questionvars}
 
   def getCounterPair(self):
     '''
