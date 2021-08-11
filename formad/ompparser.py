@@ -18,7 +18,7 @@ class OpenMPParser:
   }
 
   def __init__(self, pragmastr):
-    self.scopes, self.default = self.parsepragma(str(pragmastr))
+    self.scopes, self.default, self.linenumber = self.parsepragma(str(pragmastr))
   
   def parsepragma(self, pragmastr):
     """
@@ -34,7 +34,8 @@ class OpenMPParser:
     pragmascopes = {}
     defaultscope = None
     variables = set()
-    for clausetype in ("shared", "private", "firstprivate", "reduction", "default", "copyin"):
+    linenumber = 0
+    for clausetype in ("shared", "private", "firstprivate", "reduction", "default", "copyin", "line"):
       currentclausetype = re.findall("[,\s]+%s\s*\(([^)]*)\)"%clausetype,pragmastr,re.IGNORECASE)
       for clause in currentclausetype:
         newvariables = {}
@@ -53,6 +54,10 @@ class OpenMPParser:
             defaultscope = False
           else:
             raise OpenMPError("Invalid default scope")
+        elif(clausetype == 'line'):
+          # not really an OpenMP clause type, but we are using this fake clause to
+          # get the line number where this pragma lives in the input file.
+          linenumber = int(clause)
         else:
           newvariables = re.split('\s*[,|\s]\s*',clause)
           newvariables = list(filter(None, newvariables))
@@ -64,7 +69,7 @@ class OpenMPParser:
           variables |= lowervarset
     if defaultscope == None:
       defaultscope = Scopes.shared
-    return pragmascopes, defaultscope
+    return pragmascopes, defaultscope, linenumber
   
   def getscope(self, varname):
     """

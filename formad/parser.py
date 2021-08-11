@@ -1,6 +1,6 @@
 import formad.ompparser as omp
 from formad.scope import Scope
-from fparser.common.readfortran import FortranFileReader
+from fparser.common.readfortran import FortranStringReader
 from fparser.two.parser import ParserFactory
 from fparser.two import Fortran2003
 import sympy
@@ -9,6 +9,7 @@ import z3
 import logging
 #logging.basicConfig(level=logging.DEBUG)
 from enum import Enum, auto
+import re
 
 class Answer(Enum):
   '''
@@ -18,24 +19,51 @@ class Answer(Enum):
   no = auto()
   maybe = auto()
 
+class Preprocessor:
+  def __init__(self, filename, adjointstmts):
+    '''
+    Helper function that reads a Fortran source file, and inserts statement
+    labels to allow the parser to keep track of line numbers.
+    '''
+    out = []
+    staged = []
+    with open(filename, 'r') as fp:
+      for i, line in enumerate(fp):
+        linenumber = i+1
+        nonwhite = re.findall("\s*(\S)", line)
+        if((not nonwhite in (None, [])) and (not nonwhite[0] in ("!", "&"))):
+          out += staged
+          staged = []
+          out.append(str(linenumber) + " " + line)
+        elif(omp.OpenMPParser.ispragma(line)):
+          out += staged
+          staged = []
+          out.append(line.rstrip() + f", line({linenumber})\n")
+        else:
+          out.append(line)
+        if(linenumber in adjointstmts):
+          staged += adjointstmts[linenumber]
+    self.source = "".join(out)
+
 class ParloopFinder:
   '''
   This class provides infrastructure to go through an entire Fortran source
   file, and extract all OpenMP parallel loops from it.
   '''
-  def __init__(self, filename):
-    logging.debug(f"Creating parser for file {filename}")
-    self.parloops = self.find_parloops_file(filename)
+  def __init__(self, source, querylinenumber):
+    logging.debug(f"Creating parser")
+    self.parser, self.parloop, self.pragma = self.find_parloop(source, querylinenumber)
+
   
-  def find_parloops_file(self, filename):
+  def find_parloop(self, source, querylinenumber):
     '''
-    Find do-loops with OpenMP pragma
+    Find do-loop with OpenMP pragma. A match is only returned if it
+    starts at the queried line number.
     '''
     def __find_parloops_walker(node):
       '''
       Recursive helper function for findparloops
       '''
-      local_list = []
       children = []
       if hasattr(node, "content"):
         children = node.content
@@ -43,10 +71,14 @@ class ParloopFinder:
         children = node.items
       for child in children:
         if(type(child) == Fortran2003.Comment and omp.OpenMPParser.ispragma(child.tostr())):
-          local_list.append((child, node))
-        local_list += __find_parloops_walker(child)
-      return local_list
-    reader = FortranFileReader(filename, ignore_comments=False)
+          parser = omp.OpenMPParser(child.tostr())
+          if(parser.linenumber == querylinenumber):
+            return parser, node, child
+        ret = __find_parloops_walker(child)
+        if(ret != None):
+          return ret
+      return None
+    reader = FortranStringReader(source, ignore_comments=False)
     f_parser = ParserFactory().create(std="f2003")
     ast = f_parser(reader)
     return __find_parloops_walker(ast)
@@ -118,10 +150,10 @@ class ParloopParser:
   This class provides infrastructure to parse an individual OpenMP-parallel
   loop and extract information from it.
   '''
-  def __init__(self, omppragma, parloop):
+  def __init__(self, ompparser, parloop):
     self.vars = {}
     self.controlPath = Scope(None)
-    self.ompparser = omp.OpenMPParser(omppragma)
+    self.ompparser = ompparser
     # hack to determine name of loop counter variable
     self.loopCounterName = parloop.content[1].items[1].items[1][0].tostr()
     self.vars[self.loopCounterName] = Variable(self.loopCounterName, 0, isCounter = True)
