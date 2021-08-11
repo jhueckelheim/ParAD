@@ -2,7 +2,7 @@ subroutine LBM_SC(srcGrid, dstGrid)
   real, dimension(0:(150)*(1*(120))*(1*(120))*N_CELL_ENTRIES-1) :: srcGrid, dstGrid
   real :: ux, uy, uz, u2, rho
   continue
-  !$omp parallel do private( ux, uy, uz, u2, rho )
+  !$omp parallel do private( ux, uy, uz, u2, rho ) shared(dstGrid, srcGrid)
   do i = (0)+N_CELL_ENTRIES*((0)+(0)*(1*(120))+(0)*(1*(120))*(1*(120))), (0)+N_CELL_ENTRIES*((0)+(0)*(1*(120))+((150))*(1*(120))*(1*(120))), N_CELL_ENTRIES
   if( iand(srcGrid((FLAGS)+N_CELL_ENTRIES*((0)+(0)*(1*(120))+(0)*(1*(120))*(1*(120)))+(i)), OBSTACLE)) then
     dstGrid((C)+N_CELL_ENTRIES*((0)+(0)*(1*(120))+(0)*(1*(120))*(1*(120)))+(i)) = srcGrid((C)+N_CELL_ENTRIES*((0)+(0)*(1*(120))+(0)*(1*(120))*(1*(120)))+(i))

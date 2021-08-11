@@ -91,5 +91,5 @@ class OpenMPParser:
   
   @staticmethod
   def ispragma(commentstr):
-    if(re.match("!\$\s*omp",commentstr,re.IGNORECASE)):
+    if(re.match("\s*!\$\s*omp",commentstr,re.IGNORECASE)):
       return True

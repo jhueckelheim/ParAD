@@ -12,7 +12,7 @@ if __name__ == "__main__":
     raise Exception("Input JSON file must be specified")
   f90filename = sys.argv[1]
   jsonfilename = sys.argv[2]
-  querylinenumber = int(re.findall("questionToZ3_stassuij_line(\d*)\.json", jsonfilename)[0])
+  querylinenumber = int(re.findall("questionToZ3_(.*)_line(\d*)\.json", jsonfilename)[0][1])
   adjointstmts = dict()
   questionvars = set()
   with open(jsonfilename, "r") as fp:

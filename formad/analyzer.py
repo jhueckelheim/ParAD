@@ -1,6 +1,7 @@
 import z3
 import json
 from formad.scope import Scope
+import logging
 
 class TupleTypes:
   def __init__(self):
@@ -27,7 +28,8 @@ class ParloopAnalyzer:
     self.ttypes = TupleTypes()
     self.isSafe = {x:True for x in self.vars}
     self.checkModel(parser.controlPath, self.counter0 != self.counter1)
-    self.safeQueryVars = {var:self.isSafe[var] for var in questionvars}
+    isSafeLower = {x.lower():self.isSafe[x] for x in self.isSafe}
+    self.safeQueryVars = {var:isSafeLower[f"{var}_b"] for var in questionvars}
 
   def getCounterPair(self):
     '''
@@ -74,6 +76,8 @@ class ParloopAnalyzer:
                 scope.props["z3"].push()
                 scope.props["z3"].add(expr0 == expr1)
                 if(scope.props["z3"].check() != z3.z3.unsat):
+                  logging.debug(f"###found {varname} unsafe with {expr0} == {expr1}")
+                  logging.debug(str(scope.props["z3"].assertions()))
                   self.isSafe[varname] = False
                   break
                 scope.props["z3"].pop()

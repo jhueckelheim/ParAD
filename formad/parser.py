@@ -28,10 +28,12 @@ class Preprocessor:
     out = []
     staged = []
     with open(filename, 'r') as fp:
-      for i, line in enumerate(fp):
+      inContinuation = False
+      for i, lineCaseSensitive in enumerate(fp):
+        line = lineCaseSensitive.lower()
         linenumber = i+1
         nonwhite = re.findall("\s*(\S)", line)
-        if((not nonwhite in (None, [])) and (not nonwhite[0] in ("!", "&"))):
+        if((not nonwhite in (None, [])) and (not nonwhite[0] in ("!", "&")) and not inContinuation):
           out += staged
           staged = []
           out.append(str(linenumber) + " " + line)
@@ -43,6 +45,10 @@ class Preprocessor:
           out.append(line)
         if(linenumber in adjointstmts):
           staged += adjointstmts[linenumber]
+        if(line.rstrip().endswith("&")):
+          inContinuation = True
+        else:
+          inContinuation = False
     self.source = "".join(out)
 
 class ParloopFinder:
