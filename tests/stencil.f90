@@ -3,18 +3,7 @@ subroutine stencil_nodefault(r, u, n)
   double precision, dimension(n) :: u, r
   !---------------------------------------
   continue
-  !$omp parallel for shared(r, n, u) private(i) default(none)
-  do i=2,n-1
-    r(i) = u(i-1) + u(i+1) -2*u(i)
-  end do
-end subroutine
-
-subroutine stencil_default(r, u, n)
-  integer :: n, i
-  double precision, dimension(n) :: u, r
-  !---------------------------------------
-  continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u) private(i)
   do i=2,n-1
     r(i) = u(i-1) + u(i+1) -2*u(i)
   end do
@@ -25,7 +14,7 @@ subroutine stencil_increment(r, u, n)
   double precision, dimension(n) :: u, r
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u) private(i)
   do i=2,n-1
     r(i) = r(i) + u(i-1) + u(i+1) -2*u(i)
   end do
@@ -36,7 +25,7 @@ subroutine stencil_trivial(r, u, n)
   double precision, dimension(n) :: u, r
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u) private(i)
   do i=2,n-1
     r(i) = 2*u(i)
   end do
@@ -47,7 +36,7 @@ subroutine stencil_offset(r, u, n)
   double precision, dimension(n) :: u, r
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u) private(i)
   do i=2,n-11
     r(i) = u(i+10)
   end do
@@ -58,7 +47,7 @@ subroutine stencil_symmetric(r, u, n)
   double precision, dimension(n) :: u, r
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u) private(i)
   do i=2,n,2
     r(i-1) = 2*u(i)
     r(i) = 3*u(i-1)
@@ -71,7 +60,7 @@ subroutine stencil_indirect(r, u, n, c)
   integer, dimension(n) :: c
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u, c) private(i)
   do i=2,n,2
     r(c(i)) = 2*u(c(i-1))
     r(c(i-1)) = 3*u(c(i))
@@ -84,7 +73,7 @@ subroutine stencil_indirect_nonconst(r, u, n, c)
   integer, dimension(n) :: c
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(r, n, u, c) private(i)
   do i=2,n,2
     r(c(i)) = 2*u(c(i-1))
     c(i-1) = 4
@@ -92,14 +81,14 @@ subroutine stencil_indirect_nonconst(r, u, n, c)
   end do
 end subroutine
 
-subroutine stencil_readwrite(u, n, a)
+subroutine stencil_readwrite(u, n)
   integer :: n, i
   double precision, dimension(2,n) :: u
   !---------------------------------------
   continue
-  !$omp parallel for
+  !$omp parallel do shared(n, u) private(i)
   do i=2,n-1
-    u(1,i) = u(2,i-1) + u(2,i+1) -2*u(2,i) * a
+    u(1,i) = u(2,i-1) + u(2,i+1) -2*u(2,i)
   end do
 end subroutine
 

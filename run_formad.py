@@ -25,6 +25,7 @@ if __name__ == "__main__":
         linenumber = write["line"]
         indices = write["idx"]
         statement = "      " + varname + "_b(" + ", ".join(indices) + ") = 0.0\n"
+        statement = statement.replace("[","(").replace("]",")")
         if not (linenumber in adjointstmts):
           adjointstmts[linenumber] = []
         adjointstmts[linenumber].append(statement)
