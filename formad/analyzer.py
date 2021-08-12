@@ -50,10 +50,12 @@ class ParloopAnalyzer:
     scope.props["z3"].add(assertions)
     for varname in self.vars:
       if not varname.endswith("_b"):
+        #print(f"known writes for {varname}:")
         var = self.vars[varname]
         if(repr(scope) in var.writeExpressions):
           writeexpr = var.writeExpressions[repr(scope)]
           for expr0t in writeexpr:
+            #print(f"  {expr0t}")
             expr0s = self.ttypes.tupleFromExpression(expr0t)
             expr0 = z3.substitute(expr0s, (self.counter0(), self.counter1()))
             for expr1t in writeexpr:
@@ -64,6 +66,7 @@ class ParloopAnalyzer:
       if varname.endswith("_b") and self.isSafe[varname]:
         # we check the safety of adjoint variables, but only if they haven't
         # already been found unsafe.
+        #print(f"checking writes for {varname}:")
         var = self.vars[varname]
         if(repr(scope) in var.writeExpressions):
           writeexpr = var.writeExpressions[repr(scope)]

@@ -39,4 +39,5 @@ if __name__ == "__main__":
     print("{")
     for var in analyzer.safeQueryVars:
       print(f"  \"{var}\": {analyzer.safeQueryVars[var]},")
+      #print(f"  \"{var}\": False,")
     print("}")

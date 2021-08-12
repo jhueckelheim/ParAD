@@ -184,7 +184,7 @@ class ParloopParser:
       # we have seen this variable before, but it may be modified,
       # so we start a new instance here.
       self.vars[varname].pushInstance()
-    if(indexExpression != None):
+    if(indexExpression != None and self.ompparser.getscope(varname) == omp.Scopes.shared):
       self.vars[varname].pushExpression(indexExpression, writeAccess, self.controlPath)
 
   def visitIndexNode(self, node):
@@ -271,7 +271,7 @@ class ParloopParser:
     indexExpression = self.visitIndexNode(index)
     self.visitNode(index) # visit the node again, this time also analysing read/write of all vars used within the node.
     self.visitName(var, writeAccess, indexExpression)
-    if(writeAccess == Answer.yes):
+    if(writeAccess == Answer.yes and self.ompparser.getscope(varname) == omp.Scopes.shared):
       self.vars[varname].pushExpression(indexExpression, writeAccess, self.controlPath)
     return self.vars[varname].currentInstance.function(*indexExpression)
 

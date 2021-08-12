@@ -20,7 +20,7 @@
 !      include 'tbodyc.fh'
 !      include "speed.fh"
 
-      complex(8) :: ctt(nsp), cf23, cf56, cuu, cdd, cs, cfe, cf1, cf2, cfd
+      complex(8) :: ctt(nsp,nt), cf23, cf56, cuu, cdd, cs, cfe, cf1, cf2, cfd
       complex(8) h2pi_s(5), gind(5)
 ! ----------------------------------------------------------------------
 
@@ -52,24 +52,27 @@
       cf56 = dcmplx( fr(5,k12), fr(6,k12) )
       cfd = dcmplx( fdr, fdi )
 
-      continue
-!$OMP PARALLEL DO  SCHEDULE( DYNAMIC ) SHARED( tdott, cr, cl )   PRIVATE( i, j, jp, ig, idd, iud, idu, iuu, ctt, tdt, cuu, cdd, cs, sgn )
       do  j=1,nt
 
 ! --------------
 ! ispin exchange
 ! --------------
         do i = 1, ns
-            ctt(i) = 0.
+            ctt(i,j) = 0.
         enddo
         do  jp=1,nt
             if (tdott(j,jp,k12).ne.0.) then
                tdt=tdott(j,jp,k12)
                do  i = 1, ns
-                  ctt(i) = ctt(i)+tdt*cr(i,jp)
+                  ctt(i,j) = ctt(i,j)+tdt*cr(i,jp)
                enddo
             end if
         enddo
+      enddo
+
+      continue
+!$OMP PARALLEL DO  SCHEDULE( DYNAMIC ) SHARED( tdott, cr, cl, ctt )   PRIVATE( i, j, jp, ig, idd, iud, idu, iuu, tdt, cuu, cdd, cs, sgn )
+      do  j=1,nt
 
 ! --------------------------------------
 ! spin exchange and spin flip operations
@@ -106,21 +109,21 @@
               idu=mss(3,ig,k12)
               iuu=mss(4,ig,k12)
 
-              cuu = xtn*cr(iuu,j) + xtnt*ctt(iuu)
-              cdd = xtn*cr(idd,j) + xtnt*ctt(idd)
-              cs = xtn*( cr(idu,j) + cr(iud,j) ) + xtnt*( ctt(idu) + ctt(iud) )
+              cuu = xtn*cr(iuu,j) + xtnt*ctt(iuu,j)
+              cdd = xtn*cr(idd,j) + xtnt*ctt(idd,j)
+              cs = xtn*( cr(idu,j) + cr(iud,j) ) + xtnt*( ctt(idu,j) + ctt(iud,j) )
 
-              cl(idd,j) = xee*cr(idd,j) + xeet*ctt(idd) + cf56*cuu - cf23*cs  
-     &           + cf1*ctt(iud) + cf2*ctt(idu) + cfd*ctt(iuu)
-              cl(iuu,j) = xee*cr(iuu,j) + xeet*ctt(iuu) + conjg(cf56)*cdd + conjg(cf23)*cs  
-     &           - conjg(cf2)*ctt(iud) - conjg(cf1)*ctt(idu) + conjg(cfd)*ctt(idd)
+              cl(idd,j) = xee*cr(idd,j) + xeet*ctt(idd,j) + cf56*cuu - cf23*cs  
+     &           + cf1*ctt(iud,j) + cf2*ctt(idu,j) + cfd*ctt(iuu,j)
+              cl(iuu,j) = xee*cr(iuu,j) + xeet*ctt(iuu,j) + conjg(cf56)*cdd + conjg(cf23)*cs  
+     &           - conjg(cf2)*ctt(iud,j) - conjg(cf1)*ctt(idu,j) + conjg(cfd)*ctt(idd,j)
 
-              cl(iud,j) = xmm*cr(iud,j) + xmmt*ctt(iud) + xmmp*cr(idu,j)  
-     &           + (xmmpt+cfe)*ctt(idu) + ( cf23*cuu - conjg(cf23)*cdd )  
-     &           + conjg(cf1)*ctt(idd) - cf2*ctt(iuu)
-              cl(idu,j) = xmm*cr(idu,j) + xmmt*ctt(idu) + xmmp*cr(iud,j) 
-     &           + (xmmpt+conjg(cfe))*ctt(iud) + ( cf23*cuu - conjg(cf23)*cdd )  
-     &           + conjg(cf2)*ctt(idd) - cf1*ctt(iuu)
+              cl(iud,j) = xmm*cr(iud,j) + xmmt*ctt(iud,j) + xmmp*cr(idu,j)  
+     &           + (xmmpt+cfe)*ctt(idu,j) + ( cf23*cuu - conjg(cf23)*cdd )  
+     &           + conjg(cf1)*ctt(idd,j) - cf2*ctt(iuu,j)
+              cl(idu,j) = xmm*cr(idu,j) + xmmt*ctt(idu,j) + xmmp*cr(iud,j) 
+     &           + (xmmpt+conjg(cfe))*ctt(iud,j) + ( cf23*cuu - conjg(cf23)*cdd )  
+     &           + conjg(cf2)*ctt(idd,j) - cf1*ctt(iuu,j)
  
            enddo
 
@@ -133,21 +136,21 @@
               iuu=mss(4,ig,k12)
               sgn = mss_sign(ig,k12)
 
-              cuu = -sgn*conjg( xtn*cr(iuu,j) + xtnt*ctt(iuu) )
-              cdd = xtn*cr(idd,j) + xtnt*ctt(idd)
-              cs = xtn*( sgn*conjg(cr(idu,j)) + cr(iud,j) ) + xtnt*( sgn*conjg(ctt(idu)) + ctt(iud) )
+              cuu = -sgn*conjg( xtn*cr(iuu,j) + xtnt*ctt(iuu,j) )
+              cdd = xtn*cr(idd,j) + xtnt*ctt(idd,j)
+              cs = xtn*( sgn*conjg(cr(idu,j)) + cr(iud,j) ) + xtnt*( sgn*conjg(ctt(idu,j)) + ctt(iud,j) )
 
-              cl(idd,j) = xee*cr(idd,j) + xeet*ctt(idd) + cf56*cuu - cf23*cs  
-     &           + cf1*ctt(iud) + cf2*sgn*conjg(ctt(idu)) - cfd*sgn*conjg(ctt(iuu))
-              cl(iuu,j) = xee*cr(iuu,j) + xeet*ctt(iuu) - sgn*conjg( conjg(cf56)*cdd + conjg(cf23)*cs )  
-     &           - sgn*conjg( -conjg(cf2)*ctt(iud) + conjg(cfd)*ctt(idd) ) +cf1*ctt(idu)
+              cl(idd,j) = xee*cr(idd,j) + xeet*ctt(idd,j) + cf56*cuu - cf23*cs  
+     &           + cf1*ctt(iud,j) + cf2*sgn*conjg(ctt(idu,j)) - cfd*sgn*conjg(ctt(iuu,j))
+              cl(iuu,j) = xee*cr(iuu,j) + xeet*ctt(iuu,j) - sgn*conjg( conjg(cf56)*cdd + conjg(cf23)*cs )  
+     &           - sgn*conjg( -conjg(cf2)*ctt(iud,j) + conjg(cfd)*ctt(idd,j) ) +cf1*ctt(idu,j)
 
-              cl(iud,j) = xmm*cr(iud,j) + xmmt*ctt(iud)  
-     &           + sgn*( xmmp*conjg(cr(idu,j)) + (xmmpt+cfe)*conjg(ctt(idu)) ) + ( cf23*cuu - conjg(cf23)*cdd )  
-     &           + conjg(cf1)*ctt(idd) + cf2*sgn*conjg(ctt(iuu))
-              cl(idu,j) = xmm*cr(idu,j) + xmmt*ctt(idu)  
-     &           + sgn*( xmmp*conjg(cr(iud,j)) + (xmmpt+cfe)*conjg(ctt(iud)) + conjg( cf23*cuu - conjg(cf23)*cdd ) )  
-     &           + sgn*conjg( conjg(cf2)*ctt(idd) ) + conjg(cf1)*ctt(iuu) 
+              cl(iud,j) = xmm*cr(iud,j) + xmmt*ctt(iud,j)  
+     &           + sgn*( xmmp*conjg(cr(idu,j)) + (xmmpt+cfe)*conjg(ctt(idu,j)) ) + ( cf23*cuu - conjg(cf23)*cdd )  
+     &           + conjg(cf1)*ctt(idd,j) + cf2*sgn*conjg(ctt(iuu,j))
+              cl(idu,j) = xmm*cr(idu,j) + xmmt*ctt(idu,j)  
+     &           + sgn*( xmmp*conjg(cr(iud,j)) + (xmmpt+cfe)*conjg(ctt(iud,j)) + conjg( cf23*cuu - conjg(cf23)*cdd ) )  
+     &           + sgn*conjg( conjg(cf2)*ctt(idd,j) ) + conjg(cf1)*ctt(iuu,j) 
 
            enddo
 
